@@ -193,18 +193,45 @@ export class HomeComponent implements OnInit {
 			return;
 		}
 
+		let format = this.detectFormat(this.settings.savePath.toLowerCase());
+
+		// Cannot dump elf
+		if (!format || format === 'elf') {
+			await this.alertModal('Dump error', 'Unrecognized format, please use "bin" or "hex"');
+			return;
+		}
+
 		let sub: Subscription | undefined = undefined;
 		const listener = (d: string) => {
-			this.modalService.show(AlertModal, {
-				initialState: {
-					title: 'Dump complete',
-					body: 'Memory has been dumped at ' + this.settings.savePath
-				}
-			});
+			this.alertModal('Dump complete', 'Memory has been dumped at ' + this.settings.savePath);
 			sub?.unsubscribe();
 		};
 		sub = this.e.gdbStdOut.subscribe(listener);
-		await this.e.writeGdb(`dump binary memory ${ this.settings.savePath } ${ r.lowAddress } ${ r.highAddress }\n`);
+		await this.e.writeGdb(`dump ${ format } memory ${ this.settings.savePath } ${ r.lowAddress } ${ r.highAddress }\n`);
+	}
+
+	detectFormat(path: string) {
+		let format: string | undefined = undefined;
+		if (path.endsWith('.bin')) {
+			format = 'binary';
+		}
+		else if (path.endsWith('.hex')) {
+			format = 'ihex';
+		}
+		else if (path.endsWith('.elf')) {
+			format = 'elf';
+		}
+
+		return format;
+	}
+
+	async alertModal(title: string, body: string) {
+		this.modalService.show(AlertModal, {
+			initialState: {
+				title,
+				body
+			}
+		});
 	}
 
 	test() {
@@ -230,6 +257,13 @@ export class HomeComponent implements OnInit {
 			return;
 		}
 
+		let format = this.detectFormat(this.settings.restoreFile.toLowerCase());
+
+		if (!format) {
+			await this.alertModal('Dump error', 'Unrecognized format, please use "bin" or "hex"');
+			return;
+		}
+
 		let sub: Subscription | undefined = undefined;
 		const listener = (d: string) => {
 			this.modalService.show(AlertModal, {
@@ -240,7 +274,13 @@ export class HomeComponent implements OnInit {
 			});
 			sub?.unsubscribe();
 		};
+		const formatKey = format === 'binary' ? 'binary' : '';
 		sub = this.e.gdbStdOut.subscribe(listener);
-		await this.e.writeGdb(`restore ${ this.settings.restoreFile } binary ${ this.settings.restoreAddress }\n`);
+		if (format === 'binary') {
+			await this.e.writeGdb(`restore ${ this.settings.restoreFile } binary ${ this.settings.restoreAddress }\n`);
+		} else {
+			// ihex or elf
+			await this.e.writeGdb(`load ${ this.settings.restoreFile }\n`);
+		}
 	}
 }
