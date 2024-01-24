@@ -1,10 +1,10 @@
 {
-	"name" : "angular-electron",
-	"description" : "Angular Electron sample",
+	"name" : "bm-programmer-electron",
+	"description" : "BM Programmer",
 	"version" : "14.0.0",
 	"main" : "main.js",
 	"private" : true,
 	"dependencies" : {
-		"@serialport/list" : "^12.0.0"
+		"serialport" : "^12.0.0"
 	}
 }

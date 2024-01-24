@@ -1,7 +1,144 @@
 <div class="container">
-	<h1 class="title">
-		{{ 'PAGES.HOME.TITLE' }}
-	</h1>
+	<h3>BMP Programmer</h3>
+	<div class="row" *ngIf="isDebug">
+		<div class="col">
+			<button class="btn btn-outline-secondary" type="button" (click)="test()">
+				test
+			</button>
+		</div>
+	</div>
 
-	<a routerLink="/detail">{{ 'PAGES.HOME.GO_TO_DETAIL' }}</a>
+	<div class="row">
+		<div class="col-12">
+			<h5>GDB</h5>
+		</div>
+		<div class="col">
+			<div class="input-group mb-3">
+				<input [(ngModel)]="settings.gdbPath" type="text" class="form-control" placeholder="GDB Path">
+				<button class="btn btn-outline-secondary" type="button" (click)="browseForGdb()">
+					Browse
+				</button>
+			</div>
+		</div>
+
+		<div class="col">
+			<div class="input-group mb-3">
+				<select class="form-select" [(ngModel)]="settings.selectedComPort">
+					<option *ngFor="let o of comPorts">{{ o.friendlyName }}</option>
+				</select>
+				<button class="btn btn-outline-success" type="button" (click)="connectToGdb()">
+					Connect
+				</button>
+				<button class="btn btn-outline-secondary" type="button" (click)="loadComPorts()">
+					Refresh
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col">
+			<h4>Targets</h4>
+			<table class="table table-sm table-bordered">
+				<tr>
+					<th>Index</th>
+					<th>Name</th>
+					<th></th>
+				</tr>
+				<tr *ngFor="let t of targets">
+					<td>{{ t.index }}</td>
+					<td>{{ t.name }}</td>
+					<td>
+						<button class="btn btn-outline-primary btn-sm" (click)="attachToTarget(t)">Attach</button>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<div class="col">
+			<h4>Memory Map</h4>
+			<table class="table table-sm table-bordered">
+				<tr>
+					<th>Index</th>
+					<th>Enb</th>
+					<th>Low</th>
+					<th>High</th>
+					<th>Attrs</th>
+					<th></th>
+				</tr>
+				<tr *ngFor="let r of memoryRegions">
+					<td>{{ r.index }}</td>
+					<td>{{ r.enb ? 'Yes' : 'No' }}</td>
+					<td>{{ r.lowAddress }}</td>
+					<td>{{ r.highAddress }}</td>
+					<td>{{ r.attrs.join(' ') }}</td>
+					<td>
+						<button class="btn btn-outline-primary btn-sm" (click)="dumpRegion(r)">Dump</button>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+	</div>
+
+	<div class="row">
+		<div class="col-12">
+			<h5>Dump</h5>
+		</div>
+		<div class="col">
+			<div class="input-group mb-3">
+				<input [(ngModel)]="settings.savePath" type="text" class="form-control" placeholder="Dump path">
+				<button class="btn btn-outline-secondary" type="button" (click)="browseDump()">
+					Browse
+				</button>
+				<button class="btn btn-outline-primary" type="button" (click)="browseDump()">
+					Dump All
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-12">
+			<h5>Restore</h5>
+		</div>
+		<div class="col-3">
+			<div class="input-group mb-3">
+				<input [(ngModel)]="settings.restoreAddress" type="text" class="form-control" placeholder="Address"
+					(ngModelChange)="saveSettings()"
+				>
+			</div>
+		</div>
+
+		<div class="col">
+			<div class="input-group mb-3">
+				<input [(ngModel)]="settings.restoreFile" type="text" class="form-control" placeholder="File Path">
+				<button class="btn btn-outline-secondary" type="button" (click)="browseForRestore()">
+					Browse
+				</button>
+				<button class="btn btn-outline-danger" type="button" (click)="restore()">
+					Restore
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-12">
+			<h5>Console</h5>
+		</div>
+		<div class="input-group mb-3">
+			<input [(ngModel)]="customCommand" type="text" class="form-control" placeholder="Command">
+			<button class="btn btn-outline-secondary" type="button" (click)="sendCustomCommand()">
+				Send
+			</button>
+		</div>
+	</div>
+
+	<div class="row">
+		<pre
+				style="overflow-y: scroll; max-height: 40vh; border: 1px solid silver"
+				#consoleRef
+		>{{ consoleOutput }}</pre>
+	</div>
 </div>

@@ -1,7 +1,7 @@
 {
-	"name": "angular-electron",
+	"name": "bm-programmer",
 	"version": "14.0.0",
-	"description": "Angular 17 with Electron 27 (Typescript + SASS + Hot Reload)",
+	"description": "BM Programmer",
 	"main": "app/main.js",
 	"private": true,
 	"scripts": {

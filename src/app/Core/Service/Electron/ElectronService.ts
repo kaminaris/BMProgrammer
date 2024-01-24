@@ -1,10 +1,10 @@
-import { Injectable }            from '@angular/core';
+import { EventEmitter, Injectable } from '@angular/core';
 
 // If you import a module but never use any of the imported values other than as TypeScript types,
 // the resulting javascript file will look as if you never imported the module at all.
-import { ipcRenderer, webFrame } from 'electron';
-import * as childProcess         from 'child_process';
-import * as fs                   from 'fs';
+import { ipcRenderer, webFrame }    from 'electron';
+import * as childProcess            from 'child_process';
+import * as fs                      from 'fs';
 
 @Injectable({
 	providedIn: 'root'
@@ -14,6 +14,9 @@ export class ElectronService {
 	webFrame!: typeof webFrame;
 	childProcess!: typeof childProcess;
 	fs!: typeof fs;
+
+	gdbStdErr = new EventEmitter<string>();
+	gdbStdOut = new EventEmitter<string>();
 
 	constructor() {
 		// Conditional imports
@@ -48,9 +51,37 @@ export class ElectronService {
 			// ipcRenderer.invoke can serve many common use cases.
 			// https://www.electronjs.org/docs/latest/api/ipc-renderer#ipcrendererinvokechannel-args
 		}
+
+		this.ipcRenderer.on('gdb-stdout', (l: any, data: string) => {
+			this.gdbStdOut.emit(data);
+		});
+
+		this.ipcRenderer.on('gdb-stderr', (l: any, data: string) => {
+			this.gdbStdErr.emit(data);
+		});
 	}
 
 	get isElectron(): boolean {
 		return !!(window && window.process && window.process.type);
+	}
+
+	async listComPorts() {
+		return await this.ipcRenderer.sendSync('list-com-ports');
+	}
+
+	async openFileDialog() {
+		return await this.ipcRenderer.sendSync('open-file-dialog');
+	}
+
+	async saveFileDialog() {
+		return await this.ipcRenderer.sendSync('save-file-dialog');
+	}
+
+	async connectGdb(path: string) {
+		return await this.ipcRenderer.sendSync('connect-gdb', path);
+	}
+
+	async writeGdb(command: string) {
+		return await this.ipcRenderer.sendSync('write-gdb', command);
 	}
 }

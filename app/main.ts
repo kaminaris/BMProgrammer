@@ -1,10 +1,14 @@
-import { app, BrowserWindow, screen } from 'electron';
-import * as path                      from 'path';
-import * as fs                        from 'fs';
+import { app, BrowserWindow, ipcMain, screen, dialog, ipcRenderer } from 'electron';
+import * as fs                                                      from 'fs';
+import { ChildProcessWithoutNullStreams }              from 'node:child_process';
+import * as path                                       from 'path';
+import { SerialPort }                                  from 'serialport';
+import { spawn }                                       from 'child_process';
 
 let win: BrowserWindow | null = null;
-const args = process.argv.slice(1),
-	serve = args.some(val => val === '--serve');
+const args = process.argv.slice(1);
+const serve = args.some(val => val === '--serve');
+let gdbProcess: ChildProcessWithoutNullStreams;
 
 function createWindow(): BrowserWindow {
 
@@ -20,6 +24,62 @@ function createWindow(): BrowserWindow {
 			nodeIntegration: true,
 			allowRunningInsecureContent: (serve),
 			contextIsolation: false
+		}
+	});
+
+	ipcMain.on('connect-gdb', async (event, path: string) => {
+		if (gdbProcess) {
+			gdbProcess.kill();
+		}
+
+		gdbProcess = spawn(path, ['-q'], { shell: true });
+		gdbProcess.stderr.on('data', (data: Buffer) => {
+			const str = data.toString();
+			console.log(str);
+			win!.webContents.send('gdb-stderr', str);
+		});
+
+		gdbProcess.stdout.on('data', (data: Buffer) => {
+			const str = data.toString();
+			console.log(str);
+			win!.webContents.send('gdb-stdout', str);
+		});
+
+		event.returnValue = true;
+	});
+
+	ipcMain.on('write-gdb', async (event, command: string) => {
+		if (!gdbProcess) {
+			event.returnValue = false;
+			return;
+		}
+
+		console.log('sending command', command);
+		gdbProcess.stdin.write(command);
+		event.returnValue = true;
+	});
+
+	ipcMain.on('list-com-ports', async (event) => {
+		event.returnValue = await SerialPort.list();
+	});
+
+	ipcMain.on('open-file-dialog', async (event) => {
+		const resp = await dialog.showOpenDialog({ properties: ['openFile'] });
+		if (resp.canceled) {
+			event.returnValue = false;
+		}
+		else {
+			event.returnValue = resp.filePaths;
+		}
+	});
+
+	ipcMain.on('save-file-dialog', async (event) => {
+		const resp = await dialog.showSaveDialog({ properties: [] });
+		if (resp.canceled) {
+			event.returnValue = false;
+		}
+		else {
+			event.returnValue = resp.filePath;
 		}
 	});
 
