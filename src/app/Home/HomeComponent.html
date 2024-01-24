@@ -105,7 +105,7 @@
 		<div class="col-3">
 			<div class="input-group mb-3">
 				<input [(ngModel)]="settings.restoreAddress" type="text" class="form-control" placeholder="Address"
-					(ngModelChange)="saveSettings()"
+						(ngModelChange)="saveSettings()"
 				>
 			</div>
 		</div>
@@ -136,9 +136,11 @@
 	</div>
 
 	<div class="row">
+		<div class="col">
 		<pre
 				style="overflow-y: scroll; max-height: 40vh; border: 1px solid silver"
 				#consoleRef
 		>{{ consoleOutput }}</pre>
+		</div>
 	</div>
 </div>

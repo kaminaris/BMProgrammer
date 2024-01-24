@@ -1,9 +1,10 @@
 import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { ElectronService }                                             from 'app/Core/Service/Electron/ElectronService';
 import { AlertModal }                                                  from 'app/Home/Component/AlertModal';
+import { LoadingModal }                                                from 'app/Home/Component/LoadingModal';
 import { DebugTarget }                                                 from 'app/Home/Interface/DebugTarget';
 import { MemoryRegion }                                                from 'app/Home/Interface/MemoryRegion';
-import { BsModalService }                                              from 'ngx-bootstrap/modal';
+import { BsModalRef, BsModalService }                                  from 'ngx-bootstrap/modal';
 import { Subscription }                                                from 'rxjs';
 
 @Component({
@@ -29,6 +30,7 @@ export class HomeComponent implements OnInit {
 	@ViewChild('consoleRef', { read: ElementRef })
 	consoleRef!: ElementRef<HTMLElement>;
 	isDebug = false;
+	modal?: BsModalRef<{ title: string; body: string }>;
 
 	constructor(
 		protected e: ElectronService,
@@ -82,7 +84,7 @@ export class HomeComponent implements OnInit {
 	}
 
 	async sendCustomCommand() {
-		const r = await this.e.writeGdb(this.customCommand + '\n');
+		const r = await this.execCommand(this.customCommand);
 
 	}
 
@@ -99,14 +101,14 @@ export class HomeComponent implements OnInit {
 		if (path.startsWith('COM')) {
 			path = '\\\\.\\' + path;
 		}
-		await this.e.writeGdb('target extended-remote ' + path + '\n');
+		await this.execCommand('target extended-remote ' + path);
 
 		await new Promise(r => setTimeout(r, 200));
 		await this.listTargets();
 	}
 
 	async attachToTarget(t: DebugTarget) {
-		await this.e.writeGdb(`attach ${ t.index }\n`);
+		await this.execCommand(`attach ${ t.index }`);
 		await this.scanMemory();
 	}
 
@@ -139,7 +141,7 @@ export class HomeComponent implements OnInit {
 		sub = this.e.gdbStdErr.subscribe(listener);
 		sub2 = this.e.gdbStdOut.subscribe(listener);
 
-		await this.e.writeGdb('info mem\n');
+		await this.execCommand('info mem');
 
 		await new Promise(r => setTimeout(r, 200));
 		sub2.unsubscribe();
@@ -170,7 +172,7 @@ export class HomeComponent implements OnInit {
 		sub = this.e.gdbStdErr.subscribe(listener);
 		sub2 = this.e.gdbStdOut.subscribe(listener);
 
-		await this.e.writeGdb('mon swd\n');
+		await this.execCommand('mon swd');
 
 		await new Promise(r => setTimeout(r, 200));
 		sub2.unsubscribe();
@@ -202,12 +204,53 @@ export class HomeComponent implements OnInit {
 		}
 
 		let sub: Subscription | undefined = undefined;
-		const listener = (d: string) => {
-			this.alertModal('Dump complete', 'Memory has been dumped at ' + this.settings.savePath);
+		const listener = async (d: string) => {
+			await this.loadingStop();
+			await new Promise(r => setTimeout(r, 100));
+			await this.alertModal('Dump complete', 'Memory has been dumped at ' + this.settings.savePath);
 			sub?.unsubscribe();
 		};
 		sub = this.e.gdbStdOut.subscribe(listener);
-		await this.e.writeGdb(`dump ${ format } memory ${ this.settings.savePath } ${ r.lowAddress } ${ r.highAddress }\n`);
+		await this.loadingModal('Dumping', 'Dump in progress please wait');
+		await this.execCommand(
+			`dump ${ format } memory ${ this.settings.savePath } ${ r.lowAddress } ${ r.highAddress }`
+		);
+	}
+
+	async restore() {
+		if (!this.settings.restoreFile) {
+			return;
+		}
+
+		let format = this.detectFormat(this.settings.restoreFile.toLowerCase());
+
+		if (!format) {
+			await this.alertModal('Dump error', 'Unrecognized format, please use "bin" or "hex"');
+			return;
+		}
+
+		let sub: Subscription | undefined = undefined;
+		const listener = async (d: string) => {
+			await this.loadingStop();
+			await new Promise(r => setTimeout(r, 100));
+
+			await this.alertModal(
+				'Restore complete',
+				'File has been restored at ' + this.settings.restoreAddress + ' ' + this.settings.restoreFile
+			);
+
+			sub?.unsubscribe();
+		};
+
+		sub = this.e.gdbStdOut.subscribe(listener);
+		await this.loadingModal('Restoring', 'Restore/load in progress please wait');
+		if (format === 'binary') {
+			await this.execCommand(`restore ${ this.settings.restoreFile } binary ${ this.settings.restoreAddress }`);
+		}
+		else {
+			// ihex or elf
+			await this.execCommand(`load ${ this.settings.restoreFile }`);
+		}
 	}
 
 	detectFormat(path: string) {
@@ -234,6 +277,29 @@ export class HomeComponent implements OnInit {
 		});
 	}
 
+	async loadingModal(title: string, body: string) {
+		if (this.modal) {
+			return;
+		}
+
+		this.modal = this.modalService.show(LoadingModal, {
+			backdrop: 'static',
+			initialState: {
+				title,
+				body
+			}
+		});
+	}
+
+	async loadingStop() {
+		if (!this.modal) {
+			return;
+		}
+
+		this.modal.hide();
+		this.modal = undefined;
+	}
+
 	test() {
 		this.modalService.show(AlertModal, {
 			initialState: {
@@ -252,35 +318,9 @@ export class HomeComponent implements OnInit {
 		this.saveSettings();
 	}
 
-	async restore() {
-		if (!this.settings.restoreFile) {
-			return;
-		}
-
-		let format = this.detectFormat(this.settings.restoreFile.toLowerCase());
-
-		if (!format) {
-			await this.alertModal('Dump error', 'Unrecognized format, please use "bin" or "hex"');
-			return;
-		}
-
-		let sub: Subscription | undefined = undefined;
-		const listener = (d: string) => {
-			this.modalService.show(AlertModal, {
-				initialState: {
-					title: 'Restore complete',
-					body: 'File has been restored at ' + this.settings.restoreAddress + ' ' + this.settings.restoreFile
-				}
-			});
-			sub?.unsubscribe();
-		};
-		const formatKey = format === 'binary' ? 'binary' : '';
-		sub = this.e.gdbStdOut.subscribe(listener);
-		if (format === 'binary') {
-			await this.e.writeGdb(`restore ${ this.settings.restoreFile } binary ${ this.settings.restoreAddress }\n`);
-		} else {
-			// ihex or elf
-			await this.e.writeGdb(`load ${ this.settings.restoreFile }\n`);
-		}
+	async execCommand(s: string) {
+		const cmd = s + '\n';
+		await this.e.writeGdb(cmd);
+		this.appendToConsole(cmd);
 	}
 }
